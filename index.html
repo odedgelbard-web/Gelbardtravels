@@ -285,6 +285,53 @@
             }, [inputRef.current, biasLocation]);
         };
 
+        // --- Event Categories ---
+        const EVENT_CATEGORIES = [
+            { type: 'food', label: 'אוכל', emoji: '🍽️', icon: 'utensils', color: 'bg-orange-100 text-orange-600' },
+            { type: 'coffee', label: 'קפה', emoji: '☕', icon: 'coffee', color: 'bg-amber-100 text-amber-700' },
+            { type: 'attraction', label: 'אטרקציה', emoji: '🎡', icon: 'ferris-wheel', color: 'bg-pink-100 text-pink-600' },
+            { type: 'museum', label: 'מוזיאון', emoji: '🏛️', icon: 'building-2', color: 'bg-indigo-100 text-indigo-600' },
+            { type: 'park', label: 'פארק', emoji: '🌳', icon: 'trees', color: 'bg-green-100 text-green-600' },
+            { type: 'shopping', label: 'קניות', emoji: '🛍️', icon: 'shopping-bag', color: 'bg-purple-100 text-purple-600' },
+            { type: 'hotel', label: 'מלון', emoji: '🏨', icon: 'bed', color: 'bg-sky-100 text-sky-600' },
+            { type: 'transport', label: 'תחבורה', emoji: '🚕', icon: 'car', color: 'bg-yellow-100 text-yellow-700' },
+            { type: 'beach', label: 'חוף', emoji: '🏖️', icon: 'umbrella', color: 'bg-cyan-100 text-cyan-600' },
+            { type: 'nightlife', label: 'לילה', emoji: '🌙', icon: 'moon', color: 'bg-violet-100 text-violet-600' },
+            { type: 'photo', label: 'צילום', emoji: '📸', icon: 'camera', color: 'bg-rose-100 text-rose-600' },
+            { type: 'activity', label: 'כללי', emoji: '📍', icon: 'map-pin', color: 'bg-blue-100 text-blue-600' },
+        ];
+
+        const detectCategory = (title, address) => {
+            const text = `${title} ${address}`.toLowerCase();
+            const rules = [
+                { type: 'food', words: ['restaurant', 'מסעד', 'pizza', 'burger', 'sushi', 'grill', 'diner', 'steakhouse', 'bakery', 'bagel', 'deli', 'food', 'eat', 'כשר', 'kosher', 'falafel', 'shawarma'] },
+                { type: 'coffee', words: ['coffee', 'café', 'cafe', 'starbucks', 'קפה', 'espresso', 'tea'] },
+                { type: 'museum', words: ['museum', 'מוזיאון', 'gallery', 'exhibit', 'memorial', 'אנדרטה'] },
+                { type: 'park', words: ['park', 'פארק', 'garden', 'גן ', 'botanical', 'zoo', 'גן חיות', 'nature'] },
+                { type: 'shopping', words: ['mall', 'קניון', 'shop', 'outlet', 'market', 'שוק', 'store', 'target', 'walmart', 'souvenir'] },
+                { type: 'hotel', words: ['hotel', 'מלון', 'hostel', 'motel', 'airbnb', 'resort', 'inn', 'lodge'] },
+                { type: 'transport', words: ['airport', 'שדה תעופה', 'station', 'תחנה', 'terminal', 'taxi', 'uber', 'subway', 'metro', 'bus', 'rent a car', 'flight'] },
+                { type: 'beach', words: ['beach', 'חוף', 'shore', 'sea', 'ocean', 'pool', 'בריכ'] },
+                { type: 'nightlife', words: ['bar', 'club', 'pub', 'lounge', 'rooftop', 'cocktail', 'night'] },
+                { type: 'attraction', words: ['square', 'כיכר', 'tower', 'מגדל', 'bridge', 'גשר', 'statue', 'פסל', 'landmark', 'times square', 'liberty', 'broadway', 'viewpoint', 'observation'] },
+                { type: 'photo', words: ['viewpoint', 'lookout', 'תצפית', 'overlook', 'scenic'] },
+            ];
+            for (const rule of rules) {
+                if (rule.words.some(w => text.includes(w))) return rule.type;
+            }
+            return 'activity';
+        };
+
+        const getEventIcon = (type) => {
+            const cat = EVENT_CATEGORIES.find(c => c.type === type);
+            return cat ? cat.icon : 'map-pin';
+        };
+
+        const getEventColor = (type) => {
+            const cat = EVENT_CATEGORIES.find(c => c.type === type);
+            return cat ? cat.color : 'bg-blue-100 text-blue-600';
+        };
+
         // --- Sub Components ---
 
         const NavButton = ({ active, onClick, icon, label }) => (
@@ -886,53 +933,6 @@
                 if (!time) return false;
                 const [h] = time.split(':');
                 return new Date().getHours() === parseInt(h);
-            };
-
-            const EVENT_CATEGORIES = [
-                { type: 'food', label: 'אוכל', emoji: '🍽️', icon: 'utensils', color: 'bg-orange-100 text-orange-600' },
-                { type: 'coffee', label: 'קפה', emoji: '☕', icon: 'coffee', color: 'bg-amber-100 text-amber-700' },
-                { type: 'attraction', label: 'אטרקציה', emoji: '🎡', icon: 'ferris-wheel', color: 'bg-pink-100 text-pink-600' },
-                { type: 'museum', label: 'מוזיאון', emoji: '🏛️', icon: 'building-2', color: 'bg-indigo-100 text-indigo-600' },
-                { type: 'park', label: 'פארק', emoji: '🌳', icon: 'trees', color: 'bg-green-100 text-green-600' },
-                { type: 'shopping', label: 'קניות', emoji: '🛍️', icon: 'shopping-bag', color: 'bg-purple-100 text-purple-600' },
-                { type: 'hotel', label: 'מלון', emoji: '🏨', icon: 'bed', color: 'bg-sky-100 text-sky-600' },
-                { type: 'transport', label: 'תחבורה', emoji: '🚕', icon: 'car', color: 'bg-yellow-100 text-yellow-700' },
-                { type: 'beach', label: 'חוף', emoji: '🏖️', icon: 'umbrella', color: 'bg-cyan-100 text-cyan-600' },
-                { type: 'nightlife', label: 'לילה', emoji: '🌙', icon: 'moon', color: 'bg-violet-100 text-violet-600' },
-                { type: 'photo', label: 'צילום', emoji: '📸', icon: 'camera', color: 'bg-rose-100 text-rose-600' },
-                { type: 'activity', label: 'כללי', emoji: '📍', icon: 'map-pin', color: 'bg-blue-100 text-blue-600' },
-            ];
-
-            // Auto-detect category from title/address
-            const detectCategory = (title, address) => {
-                const text = `${title} ${address}`.toLowerCase();
-                const rules = [
-                    { type: 'food', words: ['restaurant', 'מסעד', 'pizza', 'burger', 'sushi', 'grill', 'diner', 'steakhouse', 'bakery', 'bagel', 'deli', 'food', 'eat', 'כשר', 'kosher', 'falafel', 'shawarma'] },
-                    { type: 'coffee', words: ['coffee', 'café', 'cafe', 'starbucks', 'קפה', 'espresso', 'tea'] },
-                    { type: 'museum', words: ['museum', 'מוזיאון', 'gallery', 'exhibit', 'memorial', 'אנדרטה'] },
-                    { type: 'park', words: ['park', 'פארק', 'garden', 'גן ', 'botanical', 'zoo', 'גן חיות', 'nature'] },
-                    { type: 'shopping', words: ['mall', 'קניון', 'shop', 'outlet', 'market', 'שוק', 'store', 'target', 'walmart', 'souvenir'] },
-                    { type: 'hotel', words: ['hotel', 'מלון', 'hostel', 'motel', 'airbnb', 'resort', 'inn', 'lodge'] },
-                    { type: 'transport', words: ['airport', 'שדה תעופה', 'station', 'תחנה', 'terminal', 'taxi', 'uber', 'subway', 'metro', 'bus', 'rent a car', 'flight'] },
-                    { type: 'beach', words: ['beach', 'חוף', 'shore', 'sea', 'ocean', 'pool', 'בריכ'] },
-                    { type: 'nightlife', words: ['bar', 'club', 'pub', 'lounge', 'rooftop', 'cocktail', 'night'] },
-                    { type: 'attraction', words: ['square', 'כיכר', 'tower', 'מגדל', 'bridge', 'גשר', 'statue', 'פסל', 'landmark', 'times square', 'liberty', 'broadway', '観', 'viewpoint', 'observation'] },
-                    { type: 'photo', words: ['viewpoint', 'lookout', 'תצפית', 'overlook', 'scenic'] },
-                ];
-                for (const rule of rules) {
-                    if (rule.words.some(w => text.includes(w))) return rule.type;
-                }
-                return 'activity';
-            };
-
-            const getEventIcon = (type) => {
-                const cat = EVENT_CATEGORIES.find(c => c.type === type);
-                return cat ? cat.icon : 'map-pin';
-            };
-
-            const getEventColor = (type) => {
-                const cat = EVENT_CATEGORIES.find(c => c.type === type);
-                return cat ? cat.color : 'bg-blue-100 text-blue-600';
             };
 
             // ========== LOADING ==========
