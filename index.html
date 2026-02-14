@@ -18,6 +18,38 @@
     <!-- Google Maps + Places -->
     <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyD7O2cGWNwVRlPiyY9YLvlIyeomfKi1m0k&libraries=places&language=he"></script>
 
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+    <script>
+        // ====================================================
+        // ⬇️  הדבק כאן את ההגדרות מ-Firebase Console  ⬇️
+        // ====================================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyD5eXy8XQH_qCjjaDl9bGeKc26j40Q9kfo",
+            authDomain: "gelbardtravels.firebaseapp.com",
+            databaseURL: "https://gelbardtravels-default-rtdb.firebaseio.com",
+            projectId: "gelbardtravels",
+            storageBucket: "gelbardtravels.firebasestorage.app",
+            messagingSenderId: "196627713450",
+            appId: "1:196627713450:web:d2cb88ecc7ac8a905eefd3",
+            measurementId: "G-ELP5KDVRB3"
+        };
+        // ====================================================
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        
+        // Check Firebase connection
+        db.ref('.info/connected').on('value', (snap) => {
+            if (snap.val() === true) {
+                console.log('Firebase connected');
+            } else {
+                console.log('Firebase disconnected');
+            }
+        });
+    </script>
+
     <style>
         * { box-sizing: border-box; }
         html, body { 
@@ -631,21 +663,78 @@
         function App() {
             useLucide();
 
-            const [trips, setTrips] = useState(() => {
-                try {
-                    const saved = localStorage.getItem('travelApp_v2_trips');
-                    return saved ? JSON.parse(saved) : INITIAL_TRIPS;
-                } catch { return INITIAL_TRIPS; }
-            });
-            const [documents, setDocuments] = useState(() => {
-                try {
-                    const saved = localStorage.getItem('travelApp_v2_documents');
-                    return saved ? JSON.parse(saved) : [];
-                } catch { return []; }
-            });
+            const [trips, setTrips] = useState(INITIAL_TRIPS);
+            const [documents, setDocuments] = useState([]);
+            const [dataLoaded, setDataLoaded] = useState(false);
 
-            useEffect(() => { localStorage.setItem('travelApp_v2_trips', JSON.stringify(trips)); }, [trips]);
-            useEffect(() => { localStorage.setItem('travelApp_v2_documents', JSON.stringify(documents)); }, [documents]);
+            // Write to Firebase whenever trips change (skip if change came from Firebase)
+            const isFromFirebase = useRef(false);
+            const isInitialMount = useRef(true);
+
+            // Listen for changes from Firebase
+            useEffect(() => {
+                const tripsRef = db.ref('trips');
+                const docsRef = db.ref('documents');
+
+                const unsubTrips = tripsRef.on('value', (snapshot) => {
+                    const data = snapshot.val();
+                    isFromFirebase.current = true;
+                    if (data) {
+                        const tripsArray = Array.isArray(data) ? data : Object.values(data);
+                        const fixed = tripsArray.map(t => ({
+                            ...t,
+                            days: t.days ? (Array.isArray(t.days) ? t.days : Object.values(t.days)).map(d => ({
+                                ...d,
+                                events: d.events ? (Array.isArray(d.events) ? d.events : Object.values(d.events)) : []
+                            })) : []
+                        }));
+                        setTrips(fixed);
+                    } else {
+                        db.ref('trips').set(INITIAL_TRIPS);
+                    }
+                    setDataLoaded(true);
+                    setTimeout(() => { isFromFirebase.current = false; }, 100);
+                });
+
+                const unsubDocs = docsRef.on('value', (snapshot) => {
+                    const data = snapshot.val();
+                    isFromFirebase.current = true;
+                    if (data) {
+                        setDocuments(Array.isArray(data) ? data : Object.values(data));
+                    } else {
+                        setDocuments([]);
+                    }
+                    setTimeout(() => { isFromFirebase.current = false; }, 100);
+                });
+
+                return () => {
+                    tripsRef.off('value', unsubTrips);
+                    docsRef.off('value', unsubDocs);
+                };
+            }, []);
+
+            // Fallback: if Firebase doesn't respond in 5 seconds, show app anyway
+            useEffect(() => {
+                const timer = setTimeout(() => {
+                    if (!dataLoaded) {
+                        console.warn('Firebase timeout - showing default data');
+                        setDataLoaded(true);
+                    }
+                }, 5000);
+                return () => clearTimeout(timer);
+            }, [dataLoaded]);
+
+            // Save to Firebase when user makes changes (not when Firebase pushes updates)
+            useEffect(() => {
+                if (isInitialMount.current) { isInitialMount.current = false; return; }
+                if (!dataLoaded || isFromFirebase.current) return;
+                db.ref('trips').set(trips);
+            }, [trips]);
+
+            useEffect(() => {
+                if (!dataLoaded || isFromFirebase.current) return;
+                db.ref('documents').set(documents);
+            }, [documents]);
 
             const [currentTripId, setCurrentTripId] = useState(null);
             const [activeTab, setActiveTab] = useState('itinerary');
@@ -714,6 +803,11 @@
             const handleFileUpload = (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
+                // Firebase limit: warn if file > 2MB
+                if (file.size > 2 * 1024 * 1024) {
+                    alert('הקובץ גדול מדי (מעל 2MB). נא להעלות קבצים קטנים יותר.');
+                    return;
+                }
                 const reader = new FileReader();
                 reader.onload = (ev) => {
                     setDocuments([...documents, {
@@ -773,6 +867,16 @@
                 const icons = { food: 'utensils', transport: 'car', hotel: 'bed', shopping: 'shopping-bag', museum: 'building-2' };
                 return icons[type] || 'map-pin';
             };
+
+            // ========== LOADING ==========
+            if (!dataLoaded) return (
+                <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex flex-col items-center justify-center gap-4" dir="rtl">
+                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white shadow-xl shadow-blue-200/50 animate-pulse">
+                        <Icon name="globe" size={28} />
+                    </div>
+                    <p className="text-gray-400 font-bold text-sm">טוען נתונים...</p>
+                </div>
+            );
 
             // ========== TRIP LIST ==========
             if (!currentTripId) return (
@@ -921,11 +1025,6 @@
                                     </div>
                                 )}
 
-                                {/* FAB */}
-                                <button onClick={() => { setEditingEvent(null); setIsEditModalOpen(true); }}
-                                    className="fixed bottom-20 left-4 bg-gradient-to-br from-blue-500 to-indigo-600 text-white p-3.5 rounded-2xl shadow-2xl shadow-blue-400/40 hover:scale-105 active:scale-95 transition-all z-50">
-                                    <Icon name="plus" size={24} />
-                                </button>
                             </div>
                         )}
 
@@ -980,13 +1079,25 @@
                                         </div>
                                     ))}
                                 </div>
-                                <label className="fixed bottom-20 left-4 bg-gradient-to-br from-blue-500 to-indigo-600 text-white p-3.5 rounded-2xl shadow-2xl shadow-blue-400/40 cursor-pointer hover:scale-105 active:scale-95 transition-all z-50">
-                                    <Icon name="plus" size={22} />
-                                    <input type="file" className="hidden" onChange={handleFileUpload} />
-                                </label>
                             </div>
                         )}
                     </main>
+
+                    {/* Floating Action Buttons - always visible above bottom nav */}
+                    {activeTab === 'itinerary' && (
+                        <button onClick={() => { setEditingEvent(null); setIsEditModalOpen(true); }}
+                            className="fixed left-4 bg-gradient-to-br from-blue-500 to-indigo-600 text-white p-3.5 rounded-2xl shadow-2xl shadow-blue-400/40 hover:scale-105 active:scale-95 transition-all z-50"
+                            style={{ bottom: 'calc(max(16px, env(safe-area-inset-bottom)) + 56px)' }}>
+                            <Icon name="plus" size={24} />
+                        </button>
+                    )}
+                    {activeTab === 'documents' && (
+                        <label className="fixed left-4 bg-gradient-to-br from-blue-500 to-indigo-600 text-white p-3.5 rounded-2xl shadow-2xl shadow-blue-400/40 cursor-pointer hover:scale-105 active:scale-95 transition-all z-50"
+                            style={{ bottom: 'calc(max(16px, env(safe-area-inset-bottom)) + 56px)' }}>
+                            <Icon name="plus" size={22} />
+                            <input type="file" className="hidden" onChange={handleFileUpload} />
+                        </label>
+                    )}
 
                     {/* Bottom Nav */}
                     <div className="fixed bottom-0 left-0 right-0 glass border-t border-gray-200/50 flex justify-around z-40" style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom))', paddingTop: '8px' }}>
