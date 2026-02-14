@@ -1,0 +1,1029 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>הטיול הגדול לארה"ב</title>
+    
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@200;300;400;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Secular+One&display=swap" rel="stylesheet">
+    
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Google Maps + Places -->
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyD7O2cGWNwVRlPiyY9YLvlIyeomfKi1m0k&libraries=places&language=he"></script>
+
+    <style>
+        * { box-sizing: border-box; }
+        body { 
+            font-family: 'Assistant', sans-serif !important; 
+            background-color: #f8fafc;
+            margin: 0;
+            padding: 0;
+            -webkit-tap-highlight-color: transparent;
+            overscroll-behavior: none;
+        }
+        .font-display { font-family: 'Secular One', sans-serif !important; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        @keyframes fade-in { 
+            from { opacity: 0; transform: translateY(12px); } 
+            to { opacity: 1; transform: translateY(0); } 
+        }
+        @keyframes slide-up {
+            from { opacity: 0; transform: translateY(100%); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes pulse-dot {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.4); opacity: 0.7; }
+        }
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+        .animate-fade-in { animation: fade-in 0.35s ease-out forwards; }
+        .animate-slide-up { animation: slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        .animate-pulse-dot { animation: pulse-dot 2s ease-in-out infinite; }
+        .shimmer {
+            background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+        }
+        
+        .text-shadow { text-shadow: 0 2px 8px rgba(0,0,0,0.4); }
+        .glass { background: rgba(255,255,255,0.75); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
+        .glass-dark { background: rgba(0,0,0,0.3); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+        
+        .timeline-line {
+            position: absolute;
+            right: 15px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: linear-gradient(to bottom, #dbeafe, #bfdbfe, #dbeafe);
+        }
+
+        /* Google Places Autocomplete dropdown styling */
+        .pac-container {
+            border-radius: 12px !important;
+            border: 1px solid #e2e8f0 !important;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.12) !important;
+            margin-top: 4px !important;
+            font-family: 'Assistant', sans-serif !important;
+            direction: rtl;
+            z-index: 9999 !important;
+        }
+        .pac-item {
+            padding: 10px 14px !important;
+            border-bottom: 1px solid #f1f5f9 !important;
+            cursor: pointer;
+            font-size: 14px !important;
+        }
+        .pac-item:hover { background: #eff6ff !important; }
+        .pac-item-query { font-weight: 700 !important; color: #1e40af !important; }
+        .pac-icon { display: none !important; }
+        .pac-matched { font-weight: 800 !important; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef, useCallback } = React;
+
+        // --- Helpers ---
+        const Icon = ({ name, size = 24, className = "" }) => (
+            <i data-lucide={name} className={className} style={{ width: size, height: size, display: 'inline-block' }}></i>
+        );
+
+        const useLucide = () => {
+            useEffect(() => { if (window.lucide) window.lucide.createIcons(); });
+        };
+
+        const getFutureDate = (daysToAdd) => {
+            const date = new Date();
+            date.setDate(date.getDate() + daysToAdd);
+            return date.toISOString().split('T')[0];
+        };
+
+        const formatHebrewDate = (dateStr) => {
+            if (!dateStr) return '';
+            const d = new Date(dateStr);
+            return `${d.getDate()}/${d.getMonth() + 1}`;
+        };
+
+        // Google Places: get photo URL from place
+        const getPlacePhotoUrl = (place, maxWidth = 800) => {
+            if (place.photos && place.photos.length > 0) {
+                return place.photos[0].getUrl({ maxWidth });
+            }
+            return null;
+        };
+
+        // --- Nearby Categories ---
+        const NEARBY_CATEGORIES = [
+            { id: 1, name: 'מסעדות', query: 'restaurants', icon: 'utensils', color: 'from-orange-500 to-red-500' },
+            { id: 2, name: 'קפה', query: 'coffee shops', icon: 'coffee', color: 'from-amber-600 to-yellow-500' },
+            { id: 3, name: 'אטרקציות', query: 'tourist attractions', icon: 'landmark', color: 'from-blue-500 to-cyan-500' },
+            { id: 4, name: 'קניות', query: 'shopping malls', icon: 'shopping-bag', color: 'from-pink-500 to-purple-500' },
+            { id: 5, name: 'פארקים', query: 'parks', icon: 'trees', color: 'from-green-500 to-emerald-500' },
+            { id: 6, name: 'מוזיאונים', query: 'museums', icon: 'building-2', color: 'from-indigo-500 to-violet-500' },
+        ];
+
+        // --- Cover Image Presets ---
+        const COVER_PRESETS = [
+            { label: 'ניו יורק', keyword: 'New York City skyline', url: 'https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?w=800&q=80' },
+            { label: 'לוס אנג\'לס', keyword: 'Los Angeles Hollywood', url: 'https://images.unsplash.com/photo-1534190760961-74e8c1c5c3da?w=800&q=80' },
+            { label: 'לונדון', keyword: 'London Big Ben', url: 'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?w=800&q=80' },
+            { label: 'פריז', keyword: 'Paris Eiffel Tower', url: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=800&q=80' },
+            { label: 'רומא', keyword: 'Rome Colosseum', url: 'https://images.unsplash.com/photo-1552832230-c0197dd311b5?w=800&q=80' },
+            { label: 'ברצלונה', keyword: 'Barcelona Sagrada Familia', url: 'https://images.unsplash.com/photo-1583422409516-2895a77efded?w=800&q=80' },
+            { label: 'טוקיו', keyword: 'Tokyo Japan', url: 'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=800&q=80' },
+            { label: 'דובאי', keyword: 'Dubai skyline', url: 'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?w=800&q=80' },
+            { label: 'אמסטרדם', keyword: 'Amsterdam canals', url: 'https://images.unsplash.com/photo-1534351590666-13e3e96b5571?w=800&q=80' },
+            { label: 'בנגקוק', keyword: 'Bangkok temples', url: 'https://images.unsplash.com/photo-1508009603885-50cf7c579365?w=800&q=80' },
+            { label: 'אתונה', keyword: 'Athens Acropolis', url: 'https://images.unsplash.com/photo-1555993539-1732b0258235?w=800&q=80' },
+            { label: 'פראג', keyword: 'Prague old town', url: 'https://images.unsplash.com/photo-1519677100203-a0e668c92439?w=800&q=80' },
+        ];
+
+        // Search for a cover image using Google Places Photos
+        const searchCoverImage = (query, callback) => {
+            if (!window.google) return;
+            const service = new google.maps.places.PlacesService(document.createElement('div'));
+            service.findPlaceFromQuery({
+                query: query,
+                fields: ['photos', 'name']
+            }, (results, status) => {
+                if (status === google.maps.places.PlacesServiceStatus.OK && results && results[0]) {
+                    const photoUrl = getPlacePhotoUrl(results[0], 1200);
+                    if (photoUrl) callback(photoUrl);
+                }
+            });
+        };
+
+        // --- Data ---
+        const INITIAL_TRIPS = [
+            {
+                id: 1,
+                title: 'הטיול הגדול לארה"ב',
+                subtitle: 'יוני 2026 • משפחת כהן',
+                destination: 'New York, NY',
+                coverImage: 'https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?w=800&q=80',
+                startDate: getFutureDate(30),
+                endDate: getFutureDate(34),
+                days: [
+                    { id: 1, date: getFutureDate(30), dayName: "יום 1", fullDate: formatHebrewDate(getFutureDate(30)), city: "New York", lat: 40.7128, lng: -74.0060, events: [] },
+                    { id: 2, date: getFutureDate(31), dayName: "יום 2", fullDate: formatHebrewDate(getFutureDate(31)), city: "New York", lat: 40.7128, lng: -74.0060, events: [] },
+                    { id: 3, date: getFutureDate(32), dayName: "יום 3", fullDate: formatHebrewDate(getFutureDate(32)), city: "New York", lat: 40.7128, lng: -74.0060, events: [] },
+                    { id: 4, date: getFutureDate(33), dayName: "יום 4", fullDate: formatHebrewDate(getFutureDate(33)), city: "New York", lat: 40.7128, lng: -74.0060, events: [] },
+                    { id: 5, date: getFutureDate(34), dayName: "יום 5", fullDate: formatHebrewDate(getFutureDate(34)), city: "New York", lat: 40.7128, lng: -74.0060, events: [] },
+                ]
+            }
+        ];
+
+        // --- Google Places Autocomplete Hook ---
+        const usePlacesAutocomplete = (inputRef, onSelect, biasLocation) => {
+            const autocompleteRef = useRef(null);
+
+            useEffect(() => {
+                if (!inputRef.current || !window.google) return;
+
+                const options = {
+                    fields: ['name', 'formatted_address', 'geometry', 'photos', 'rating', 'opening_hours', 'place_id', 'types'],
+                };
+
+                // Bias results to trip destination area
+                if (biasLocation) {
+                    options.bounds = new google.maps.LatLngBounds(
+                        new google.maps.LatLng(biasLocation.lat - 0.5, biasLocation.lng - 0.5),
+                        new google.maps.LatLng(biasLocation.lat + 0.5, biasLocation.lng + 0.5)
+                    );
+                    options.strictBounds = false;
+                }
+
+                autocompleteRef.current = new google.maps.places.Autocomplete(inputRef.current, options);
+
+                autocompleteRef.current.addListener('place_changed', () => {
+                    const place = autocompleteRef.current.getPlace();
+                    if (place && place.geometry) {
+                        onSelect({
+                            title: place.name,
+                            address: place.formatted_address || '',
+                            coords: `${place.geometry.location.lat()},${place.geometry.location.lng()}`,
+                            lat: place.geometry.location.lat(),
+                            lng: place.geometry.location.lng(),
+                            rating: place.rating || null,
+                            photoUrl: getPlacePhotoUrl(place),
+                            openingHours: place.opening_hours 
+                                ? place.opening_hours.weekday_text?.join(' | ') 
+                                : '',
+                            placeId: place.place_id,
+                        });
+                    }
+                });
+
+                return () => {
+                    if (autocompleteRef.current) {
+                        google.maps.event.clearInstanceListeners(autocompleteRef.current);
+                    }
+                };
+            }, [inputRef.current, biasLocation]);
+        };
+
+        // --- Sub Components ---
+
+        const NavButton = ({ active, onClick, icon, label }) => (
+            <button onClick={onClick} className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-all duration-300 ${active ? 'text-blue-600 scale-110' : 'text-gray-400 hover:text-gray-500'}`}>
+                {icon}<span className="text-[10px] font-bold">{label}</span>
+            </button>
+        );
+
+        // --- Edit Modal with Google Places ---
+        const EditModal = ({ isOpen, onClose, event, tripDays, currentDayId, tripLocation, onSave, onDelete, handleEventFileUpload, removeEventDocument }) => {
+            const [formData, setFormData] = useState({
+                time: '12:00', title: '', description: '', address: '', type: 'activity',
+                note: '', coords: '', imageUrl: '', openingHours: '', documents: [], dayId: currentDayId, rating: null
+            });
+            const searchInputRef = useRef(null);
+
+            useEffect(() => {
+                if (event) setFormData({ ...event, documents: event.documents || [], dayId: currentDayId });
+                else setFormData({ time: '12:00', title: '', description: '', address: '', type: 'activity', note: '', coords: '', imageUrl: '', openingHours: '', documents: [], dayId: currentDayId, rating: null });
+            }, [event, isOpen]);
+
+            // Determine bias location from trip
+            const biasLoc = tripLocation ? (() => {
+                const day = tripDays?.find(d => d.lat && d.lng);
+                return day ? { lat: day.lat, lng: day.lng } : { lat: 40.7128, lng: -74.006 };
+            })() : null;
+
+            const handlePlaceSelect = useCallback((placeData) => {
+                setFormData(prev => ({
+                    ...prev,
+                    title: placeData.title,
+                    address: placeData.address,
+                    coords: placeData.coords,
+                    imageUrl: placeData.photoUrl || prev.imageUrl,
+                    openingHours: placeData.openingHours || '',
+                    rating: placeData.rating,
+                }));
+            }, []);
+
+            usePlacesAutocomplete(searchInputRef, handlePlaceSelect, biasLoc);
+
+            if (!isOpen) return null;
+
+            return (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[80] flex items-end sm:items-center justify-center animate-fade-in" onClick={onClose}>
+                    <div className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] animate-slide-up" onClick={e => e.stopPropagation()}>
+                        {/* Header */}
+                        <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gradient-to-l from-blue-50 to-white">
+                            <h3 className="font-display text-xl text-gray-800">{event ? 'עריכת אירוע' : 'אירוע חדש'}</h3>
+                            <button onClick={onClose} className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition"><Icon name="x" size={16} /></button>
+                        </div>
+
+                        {/* Body */}
+                        <div className="p-5 space-y-5 overflow-y-auto flex-1 text-right">
+                            {/* Google Places Search */}
+                            <div className="bg-gradient-to-l from-blue-50 to-indigo-50 p-4 rounded-2xl border border-blue-100/60">
+                                <label className="text-xs font-bold text-blue-700 mb-2 flex items-center gap-1.5">
+                                    <Icon name="search" size={13} /> חיפוש מקום בגוגל מפות
+                                </label>
+                                <input
+                                    ref={searchInputRef}
+                                    type="text"
+                                    className="w-full bg-white border border-blue-200 rounded-xl p-3 text-sm text-right placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-transparent transition shadow-sm"
+                                    placeholder="הקלד שם מקום... (למשל: Times Square)"
+                                />
+                                <p className="text-[10px] text-blue-400 mt-1.5">התחל להקליד ובחר מהרשימה הנפתחת</p>
+                            </div>
+
+                            {/* Preview selected place */}
+                            {formData.title && formData.coords && (
+                                <div className="bg-green-50 border border-green-200 rounded-2xl p-3 flex gap-3 items-center">
+                                    {formData.imageUrl && <img src={formData.imageUrl} className="w-14 h-14 rounded-xl object-cover flex-shrink-0" />}
+                                    <div className="flex-1 min-w-0">
+                                        <div className="font-bold text-green-800 text-sm truncate">{formData.title}</div>
+                                        <div className="text-[11px] text-green-600 truncate">{formData.address}</div>
+                                        {formData.rating && <div className="text-[11px] text-yellow-600 mt-0.5">★ {formData.rating}</div>}
+                                    </div>
+                                    <Icon name="check-circle" size={20} className="text-green-500 flex-shrink-0" />
+                                </div>
+                            )}
+
+                            {/* Title */}
+                            <div>
+                                <label className="text-xs font-bold text-gray-500 block mb-1.5">כותרת</label>
+                                <input type="text" value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                                    className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm font-bold text-right focus:outline-none focus:ring-2 focus:ring-blue-200 transition" />
+                            </div>
+
+                            {/* Day + Time */}
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-xs font-bold text-gray-500 block mb-1.5">יום</label>
+                                    <select value={formData.dayId} onChange={(e) => setFormData({ ...formData, dayId: Number(e.target.value) })}
+                                        className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm text-right focus:outline-none focus:ring-2 focus:ring-blue-200 transition">
+                                        {tripDays?.map(d => <option key={d.id} value={d.id}>{d.dayName} - {d.fullDate}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-xs font-bold text-gray-500 block mb-1.5">שעה</label>
+                                    <input type="time" value={formData.time} onChange={(e) => setFormData({ ...formData, time: e.target.value })}
+                                        className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm text-right focus:outline-none focus:ring-2 focus:ring-blue-200 transition" />
+                                </div>
+                            </div>
+
+                            {/* Address */}
+                            <div>
+                                <label className="text-xs font-bold text-gray-500 block mb-1.5">כתובת</label>
+                                <input type="text" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                                    className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm text-right focus:outline-none focus:ring-2 focus:ring-blue-200 transition" />
+                            </div>
+
+                            {/* Opening Hours */}
+                            {formData.openingHours && (
+                                <div>
+                                    <label className="text-xs font-bold text-green-600 block mb-1.5 flex items-center gap-1"><Icon name="clock" size={12} /> שעות פתיחה</label>
+                                    <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-sm text-green-700 leading-relaxed" style={{ maxHeight: 120, overflowY: 'auto' }}>
+                                        {formData.openingHours}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Note */}
+                            <div>
+                                <label className="text-xs font-bold text-amber-600 block mb-1.5 flex items-center gap-1"><Icon name="sticky-note" size={12} /> הערה אישית</label>
+                                <textarea value={formData.note} onChange={(e) => setFormData({ ...formData, note: e.target.value })}
+                                    className="w-full bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-right focus:outline-none focus:ring-2 focus:ring-amber-200 transition resize-none"
+                                    rows={2} placeholder="רשום הערות, טיפים..." />
+                            </div>
+
+                            {/* Documents */}
+                            <div className="bg-gray-50 p-3 rounded-xl border border-gray-100">
+                                <div className="flex justify-between items-center mb-2">
+                                    <span className="text-xs font-bold text-gray-600 flex items-center gap-1"><Icon name="paperclip" size={12} /> מסמכים</span>
+                                    <label className="text-xs text-blue-600 font-bold cursor-pointer hover:text-blue-700 transition">
+                                        + הוסף
+                                        <input type="file" className="hidden" onChange={(e) => handleEventFileUpload(e, setFormData)} />
+                                    </label>
+                                </div>
+                                {formData.documents.map((d, i) => (
+                                    <div key={i} className="flex justify-between items-center text-xs p-2 bg-white mt-1.5 border border-gray-100 rounded-lg">
+                                        <span className="truncate flex-1">{d.name}</span>
+                                        <button onClick={() => removeEventDocument(i, setFormData)} className="text-red-400 hover:text-red-600 mr-2 transition">
+                                            <Icon name="x" size={14} />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Footer */}
+                        <div className="p-4 border-t border-gray-100 flex gap-3 bg-gray-50/50">
+                            {event && (
+                                <button onClick={() => onDelete(event.id)} className="p-3 text-red-500 bg-red-50 rounded-xl hover:bg-red-100 transition">
+                                    <Icon name="trash-2" size={20} />
+                                </button>
+                            )}
+                            <button onClick={() => onSave(formData)} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-blue-200 transition-all active:scale-[0.98]">
+                                שמור
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- Trip Edit Modal with Cover Image ---
+        const TripEditModal = ({ isOpen, onClose, trip, onSave }) => {
+            const [data, setData] = useState({ title: '', subtitle: '', destination: '', startDate: '', endDate: '', coverImage: '' });
+            const [customSearch, setCustomSearch] = useState('');
+            const [isSearchingCover, setIsSearchingCover] = useState(false);
+
+            useEffect(() => {
+                if (trip) setData({
+                    title: trip.title, subtitle: trip.subtitle, destination: trip.destination,
+                    startDate: trip.startDate, endDate: trip.endDate, coverImage: trip.coverImage || ''
+                });
+            }, [trip]);
+
+            const handleSave = () => {
+                let updatedDays = [...(trip.days || [])];
+                if (data.startDate && data.endDate) {
+                    const start = new Date(data.startDate);
+                    const end = new Date(data.endDate);
+                    const diff = Math.max(0, Math.ceil((end - start) / (1000 * 60 * 60 * 24))) + 1;
+                    const newDays = [];
+                    for (let i = 0; i < diff; i++) {
+                        const d = new Date(start); d.setDate(start.getDate() + i);
+                        const dateStr = d.toISOString().split('T')[0];
+                        const exist = trip.days.find(day => day.date === dateStr);
+                        newDays.push(exist || {
+                            id: Date.now() + i, date: dateStr, dayName: `יום ${i + 1}`,
+                            fullDate: `${d.getDate()}/${d.getMonth() + 1}`, city: data.destination,
+                            lat: 40.7128, lng: -74.006, events: []
+                        });
+                    }
+                    updatedDays = newDays;
+                }
+                onSave({ ...data, days: updatedDays });
+            };
+
+            const handleSearchCustomCover = () => {
+                if (!customSearch.trim()) return;
+                setIsSearchingCover(true);
+                searchCoverImage(customSearch, (url) => {
+                    setData(prev => ({ ...prev, coverImage: url }));
+                    setIsSearchingCover(false);
+                });
+                // Timeout fallback
+                setTimeout(() => setIsSearchingCover(false), 5000);
+            };
+
+            if (!isOpen) return null;
+            return (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[90] flex items-end sm:items-center justify-center animate-fade-in" onClick={onClose}>
+                    <div className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl overflow-hidden animate-slide-up text-right max-h-[92vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                        
+                        {/* Preview cover */}
+                        <div className="relative h-36 overflow-hidden flex-shrink-0">
+                            {data.coverImage ? (
+                                <img src={data.coverImage} className="w-full h-full object-cover" />
+                            ) : (
+                                <div className="w-full h-full bg-gradient-to-br from-blue-500 to-indigo-600"></div>
+                            )}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
+                            <div className="absolute bottom-3 right-4 text-white">
+                                <h3 className="font-display text-xl text-shadow">{data.title || 'טיול חדש'}</h3>
+                            </div>
+                        </div>
+
+                        <div className="p-5 space-y-4 overflow-y-auto flex-1">
+                            <div>
+                                <label className="text-xs font-bold text-gray-500 block mb-1.5">שם הטיול</label>
+                                <input type="text" value={data.title} onChange={e => setData({ ...data, title: e.target.value })} className="w-full p-3 border border-gray-200 rounded-xl text-right focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                            </div>
+                            <div>
+                                <label className="text-xs font-bold text-gray-500 block mb-1.5">כותרת משנה</label>
+                                <input type="text" value={data.subtitle} onChange={e => setData({ ...data, subtitle: e.target.value })} className="w-full p-3 border border-gray-200 rounded-xl text-right focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-xs font-bold text-gray-500 block mb-1.5">התחלה</label>
+                                    <input type="date" value={data.startDate} onChange={e => setData({ ...data, startDate: e.target.value })} className="w-full p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-bold text-gray-500 block mb-1.5">סיום</label>
+                                    <input type="date" value={data.endDate} onChange={e => setData({ ...data, endDate: e.target.value })} className="w-full p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="text-xs font-bold text-gray-500 block mb-1.5">יעד</label>
+                                <input type="text" value={data.destination} onChange={e => setData({ ...data, destination: e.target.value })} className="w-full p-3 border border-gray-200 rounded-xl text-right focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                            </div>
+
+                            {/* Cover Image Picker */}
+                            <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                                <label className="text-xs font-bold text-gray-600 block mb-3 flex items-center gap-1.5">
+                                    <Icon name="image" size={13} /> תמונת כיסוי לטיול
+                                </label>
+                                
+                                {/* Preset grid */}
+                                <div className="grid grid-cols-4 gap-2 mb-3">
+                                    {COVER_PRESETS.map((preset, i) => (
+                                        <button key={i} onClick={() => setData({ ...data, coverImage: preset.url })}
+                                            className={`relative h-16 rounded-xl overflow-hidden group transition-all ${data.coverImage === preset.url ? 'ring-3 ring-blue-500 ring-offset-1 scale-[1.02]' : 'hover:scale-105'}`}>
+                                            <img src={preset.url} className="w-full h-full object-cover" />
+                                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                                                <span className="text-white text-[10px] font-bold text-shadow text-center leading-tight">{preset.label}</span>
+                                            </div>
+                                            {data.coverImage === preset.url && (
+                                                <div className="absolute top-1 left-1 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
+                                                    <Icon name="check" size={10} className="text-white" />
+                                                </div>
+                                            )}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                {/* Custom search */}
+                                <div className="flex gap-2">
+                                    <input type="text" value={customSearch} onChange={e => setCustomSearch(e.target.value)}
+                                        onKeyDown={e => e.key === 'Enter' && handleSearchCustomCover()}
+                                        placeholder="חפש עיר אחרת..."
+                                        className="flex-1 bg-white border border-gray-200 rounded-xl p-2.5 text-sm text-right focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                                    <button onClick={handleSearchCustomCover}
+                                        className="bg-blue-600 text-white px-4 rounded-xl text-sm font-bold hover:bg-blue-700 transition flex items-center gap-1">
+                                        {isSearchingCover ? <Icon name="loader-2" size={14} className="animate-spin" /> : <Icon name="search" size={14} />}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <button onClick={handleSave} className="w-full bg-blue-600 hover:bg-blue-700 text-white p-3.5 rounded-xl font-bold shadow-lg shadow-blue-200 transition-all">שמור</button>
+                            <button onClick={onClose} className="w-full text-gray-400 p-2 hover:text-gray-600 transition">ביטול</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- Event Details Modal ---
+        const EventDetailsModal = ({ isOpen, onClose, event, onEdit }) => {
+            if (!isOpen || !event) return null;
+            const bg = event.imageUrl || 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=800';
+
+            return (
+                <div className="fixed inset-0 bg-white z-[100] overflow-y-auto animate-fade-in">
+                    {/* Hero image */}
+                    <div className="h-72 relative">
+                        <img src={bg} className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent"></div>
+                        <button onClick={onClose} className="absolute top-5 right-5 glass-dark p-2.5 rounded-full text-white hover:bg-black/50 transition">
+                            <Icon name="x" size={20} />
+                        </button>
+                        <button onClick={onEdit} className="absolute top-5 left-5 glass-dark p-2.5 rounded-full text-white hover:bg-black/50 transition">
+                            <Icon name="edit-2" size={18} />
+                        </button>
+                        <div className="absolute bottom-5 right-5 left-5 text-white text-right">
+                            <h2 className="text-3xl font-display text-shadow">{event.title}</h2>
+                            <p className="text-white/80 text-sm mt-1">{event.address}</p>
+                            {event.rating && <div className="mt-2 inline-block bg-yellow-500/90 text-white px-2.5 py-0.5 rounded-full text-sm font-bold">★ {event.rating}</div>}
+                        </div>
+                    </div>
+
+                    {/* Content */}
+                    <div className="p-6 text-right space-y-4">
+                        {event.time && (
+                            <div className="flex items-center gap-2 text-gray-500">
+                                <Icon name="clock" size={16} />
+                                <span className="font-bold">{event.time}</span>
+                            </div>
+                        )}
+
+                        {event.description && <p className="text-gray-700 leading-relaxed">{event.description}</p>}
+
+                        {event.openingHours && (
+                            <div className="p-4 bg-green-50 text-green-700 rounded-2xl border border-green-100">
+                                <div className="flex items-center gap-2 mb-2 font-bold"><Icon name="clock" size={16} /> שעות פתיחה</div>
+                                <div className="text-sm leading-relaxed">{event.openingHours}</div>
+                            </div>
+                        )}
+
+                        {event.note && (
+                            <div className="p-4 bg-amber-50 text-amber-800 rounded-2xl border border-amber-100">
+                                <div className="flex items-center gap-2 font-bold mb-1"><Icon name="sticky-note" size={16} /> הערה</div>
+                                <div className="text-sm">{event.note}</div>
+                            </div>
+                        )}
+
+                        {/* Documents */}
+                        {event.documents && event.documents.length > 0 && (
+                            <div className="space-y-2">
+                                <div className="font-bold text-gray-600 flex items-center gap-2"><Icon name="paperclip" size={16} /> מסמכים</div>
+                                {event.documents.map((d, i) => (
+                                    <a key={i} href={d.url} download={d.name} className="block bg-gray-50 p-3 rounded-xl border border-gray-100 text-sm text-blue-600 font-bold no-underline hover:bg-blue-50 transition">
+                                        {d.name}
+                                    </a>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Navigation buttons */}
+                        {event.coords && (
+                            <div className="space-y-3 pt-2">
+                                <div className="flex gap-3">
+                                    <a href={`https://waze.com/ul?ll=${event.coords}&navigate=yes`} target="_blank"
+                                        className="flex-1 bg-blue-50 hover:bg-blue-100 text-blue-600 p-4 rounded-2xl text-center font-bold transition no-underline flex items-center justify-center gap-2">
+                                        <Icon name="navigation" size={18} /> Waze
+                                    </a>
+                                    <a href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(event.address)}`} target="_blank"
+                                        className="flex-1 bg-green-50 hover:bg-green-100 text-green-600 p-4 rounded-2xl text-center font-bold transition no-underline flex items-center justify-center gap-2">
+                                        <Icon name="map" size={18} /> Maps
+                                    </a>
+                                </div>
+                                <a href={`https://m.uber.com/ul/?action=setPickup&pickup=my_location&dropoff[formatted_address]=${encodeURIComponent(event.address)}&dropoff[latitude]=${event.coords.split(',')[0]}&dropoff[longitude]=${event.coords.split(',')[1]}&product_id=UberXL`}
+                                    target="_blank"
+                                    className="w-full bg-gray-900 hover:bg-black text-white p-4 rounded-2xl font-bold transition no-underline flex items-center justify-center gap-3 shadow-lg">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M0 0h24v24H0V0z" fill="none"/><path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/></svg>
+                                    <span>Uber XL — הזמן מונית ל-6</span>
+                                    <Icon name="external-link" size={14} />
+                                </a>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        // --- Main App ---
+        function App() {
+            useLucide();
+
+            const [trips, setTrips] = useState(() => {
+                try {
+                    const saved = localStorage.getItem('travelApp_v2_trips');
+                    return saved ? JSON.parse(saved) : INITIAL_TRIPS;
+                } catch { return INITIAL_TRIPS; }
+            });
+            const [documents, setDocuments] = useState(() => {
+                try {
+                    const saved = localStorage.getItem('travelApp_v2_documents');
+                    return saved ? JSON.parse(saved) : [];
+                } catch { return []; }
+            });
+
+            useEffect(() => { localStorage.setItem('travelApp_v2_trips', JSON.stringify(trips)); }, [trips]);
+            useEffect(() => { localStorage.setItem('travelApp_v2_documents', JSON.stringify(documents)); }, [documents]);
+
+            const [currentTripId, setCurrentTripId] = useState(null);
+            const [activeTab, setActiveTab] = useState('itinerary');
+            const [currentDayIndex, setCurrentDayIndex] = useState(0);
+
+            const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+            const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+            const [isTripEditModalOpen, setIsTripEditModalOpen] = useState(false);
+            const [selectedEvent, setSelectedEvent] = useState(null);
+            const [editingEvent, setEditingEvent] = useState(null);
+
+            const currentTrip = trips.find(t => t.id === currentTripId);
+            const currentDay = currentTrip ? currentTrip.days[currentDayIndex] : null;
+
+            // --- Handlers ---
+            const saveTripDetails = (formData) => {
+                setTrips(trips.map(t => t.id === currentTripId ? { ...t, ...formData } : t));
+                setIsTripEditModalOpen(false);
+            };
+
+            const saveEvent = (formData) => {
+                const updatedTrips = JSON.parse(JSON.stringify(trips));
+                const tripIndex = updatedTrips.findIndex(t => t.id === currentTripId);
+                const targetDayId = formData.dayId;
+                const curDayId = currentDay.id;
+
+                if (targetDayId !== curDayId && editingEvent) {
+                    // Move event to different day
+                    updatedTrips[tripIndex].days[currentDayIndex].events =
+                        updatedTrips[tripIndex].days[currentDayIndex].events.filter(e => e.id !== editingEvent.id);
+                    const newDayIndex = updatedTrips[tripIndex].days.findIndex(d => d.id === targetDayId);
+                    if (newDayIndex !== -1) {
+                        const newEv = { ...editingEvent, ...formData };
+                        updatedTrips[tripIndex].days[newDayIndex].events.push(newEv);
+                        updatedTrips[tripIndex].days[newDayIndex].events.sort((a, b) => a.time.localeCompare(b.time));
+                        setCurrentDayIndex(newDayIndex);
+                    }
+                } else {
+                    const events = [...updatedTrips[tripIndex].days[currentDayIndex].events];
+                    if (editingEvent) {
+                        const idx = events.findIndex(e => e.id === editingEvent.id);
+                        if (idx !== -1) events[idx] = { ...events[idx], ...formData };
+                    } else {
+                        events.push({ id: Date.now(), ...formData });
+                    }
+                    events.sort((a, b) => a.time.localeCompare(b.time));
+                    updatedTrips[tripIndex].days[currentDayIndex].events = events;
+                }
+                setTrips(updatedTrips);
+                setIsEditModalOpen(false);
+                setEditingEvent(null);
+            };
+
+            const deleteEvent = (eventId) => {
+                const updatedTrips = JSON.parse(JSON.stringify(trips));
+                const tripIndex = updatedTrips.findIndex(t => t.id === currentTripId);
+                updatedTrips[tripIndex].days[currentDayIndex].events =
+                    updatedTrips[tripIndex].days[currentDayIndex].events.filter(e => e.id !== eventId);
+                setTrips(updatedTrips);
+                setIsEditModalOpen(false);
+                setIsDetailsModalOpen(false);
+                setEditingEvent(null);
+                setSelectedEvent(null);
+            };
+
+            const handleFileUpload = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    setDocuments([...documents, {
+                        id: Date.now(),
+                        name: file.name,
+                        size: (file.size / 1024).toFixed(1) + 'KB',
+                        date: new Date().toLocaleDateString('he-IL'),
+                        url: ev.target.result,
+                        type: file.type
+                    }]);
+                };
+                reader.readAsDataURL(file);
+            };
+
+            const handleEventFileUpload = (e, setFormData) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    const newDoc = { name: file.name, size: (file.size / 1024).toFixed(1) + 'KB', url: ev.target.result };
+                    setFormData(prev => ({ ...prev, documents: [...prev.documents, newDoc] }));
+                };
+                reader.readAsDataURL(file);
+            };
+
+            const removeEventDocument = (idx, setFormData) => {
+                setFormData(prev => ({ ...prev, documents: prev.documents.filter((_, i) => i !== idx) }));
+            };
+
+            const handleNearbyClick = (category) => {
+                const fallback = currentDay?.city || currentTrip?.destination || 'New York, USA';
+                const openMap = (loc) => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${category} near ${loc}`)}`, '_blank');
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(
+                        (p) => openMap(`${p.coords.latitude},${p.coords.longitude}`),
+                        () => openMap(fallback),
+                        { timeout: 5000 }
+                    );
+                } else openMap(fallback);
+            };
+
+            const getDaysUntilTrip = (trip) => {
+                if (!trip.startDate) return null;
+                const diff = Math.ceil((new Date(trip.startDate) - new Date()) / (1000 * 60 * 60 * 24));
+                if (diff > 0) return `בעוד ${diff} ימים`;
+                if (diff === 0) return "היום!";
+                return "הטיול התחיל!";
+            };
+
+            const isEventCurrent = (time) => {
+                if (!time) return false;
+                const [h] = time.split(':');
+                return new Date().getHours() === parseInt(h);
+            };
+
+            const getEventIcon = (type) => {
+                const icons = { food: 'utensils', transport: 'car', hotel: 'bed', shopping: 'shopping-bag', museum: 'building-2' };
+                return icons[type] || 'map-pin';
+            };
+
+            // ========== TRIP LIST ==========
+            if (!currentTripId) return (
+                <div className="min-h-screen bg-gradient-to-b from-blue-50/50 to-white p-6 text-right animate-fade-in" dir="rtl">
+                    <div className="mb-8">
+                        <h1 className="text-3xl font-display mb-1">הטיולים שלי ✈️</h1>
+                        <p className="text-gray-400 text-sm">תכנן את ההרפתקה הבאה שלך</p>
+                    </div>
+                    <div className="grid gap-4">
+                        {trips.map((trip, i) => (
+                            <div key={trip.id} onClick={() => { setCurrentTripId(trip.id); setCurrentDayIndex(0); setActiveTab('itinerary'); }}
+                                className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 flex justify-between items-center cursor-pointer hover:shadow-lg hover:border-blue-100 transition-all duration-300 group"
+                                style={{ animationDelay: `${i * 0.08}s` }}>
+                                <div className="flex gap-4 items-center min-w-0">
+                                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white flex-shrink-0 shadow-lg shadow-blue-200/50">
+                                        <Icon name="globe" size={22} />
+                                    </div>
+                                    <div className="overflow-hidden">
+                                        <h2 className="font-bold text-lg truncate">{trip.title}</h2>
+                                        <p className="text-xs text-gray-400 truncate">{trip.subtitle}</p>
+                                        {trip.startDate && <p className="text-xs text-blue-500 font-bold mt-0.5">{getDaysUntilTrip(trip)}</p>}
+                                    </div>
+                                </div>
+                                <div className="p-2 rounded-full bg-gray-50 text-gray-300 group-hover:bg-blue-50 group-hover:text-blue-500 transition-all flex-shrink-0">
+                                    <Icon name="arrow-left" size={18} />
+                                </div>
+                            </div>
+                        ))}
+                        <button onClick={() => {
+                            const newTrip = { ...JSON.parse(JSON.stringify(INITIAL_TRIPS[0])), id: Date.now(), title: 'טיול חדש', subtitle: 'לחץ לעריכה', coverImage: '' };
+                            setTrips([...trips, newTrip]);
+                        }} className="border-2 border-dashed border-gray-200 rounded-3xl p-8 flex flex-col items-center justify-center text-gray-400 hover:border-blue-300 hover:text-blue-500 transition-all gap-3 w-full group">
+                            <div className="w-14 h-14 rounded-full bg-gray-100 group-hover:bg-blue-50 flex items-center justify-center transition-all">
+                                <Icon name="plus" size={28} />
+                            </div>
+                            <span className="font-bold">צור טיול חדש</span>
+                        </button>
+                    </div>
+                </div>
+            );
+
+            // ========== TRIP VIEW ==========
+            return (
+                <div className="min-h-screen bg-white text-right pb-28" dir="rtl">
+                    {/* Header / Hero */}
+                    <div className="relative h-52 w-full overflow-hidden">
+                        {currentTrip.coverImage ? (
+                            <img src={currentTrip.coverImage} className="w-full h-full object-cover" />
+                        ) : (
+                            <div className="w-full h-full bg-gradient-to-br from-blue-600 to-indigo-700"></div>
+                        )}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/30 to-black/10"></div>
+
+                        <div className="absolute top-5 right-5 left-5 z-10">
+                            <button onClick={() => setCurrentTripId(null)} className="flex items-center gap-1.5 text-xs font-bold text-white/80 hover:text-white transition mb-3">
+                                <Icon name="arrow-right" size={14} /> חזרה לטיולים
+                            </button>
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <h1 className="text-2xl font-display text-white text-shadow">{currentTrip.title}</h1>
+                                    <p className="text-white/70 text-sm mt-0.5">{currentTrip.subtitle}</p>
+                                </div>
+                                <div className="flex gap-2">
+                                    <button onClick={() => setIsTripEditModalOpen(true)} className="glass-dark p-2 rounded-xl text-white hover:bg-white/30 transition">
+                                        <Icon name="settings" size={16} />
+                                    </button>
+                                    <div className="glass-dark px-3 py-2 rounded-xl text-center">
+                                        <span className="text-white font-bold text-sm block">{getDaysUntilTrip(currentTrip)}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Day selector */}
+                        <div className="absolute bottom-0 right-0 left-0 px-4 pb-3 flex gap-2 overflow-x-auto no-scrollbar">
+                            {currentTrip.days.map((day, idx) => (
+                                <button key={day.id} onClick={() => setCurrentDayIndex(idx)}
+                                    className={`flex-shrink-0 min-w-[56px] px-3 py-2 rounded-xl flex flex-col items-center transition-all duration-300 ${idx === currentDayIndex
+                                        ? 'bg-white text-blue-700 shadow-lg shadow-blue-900/20 scale-105'
+                                        : 'bg-white/15 text-white/80 hover:bg-white/25'}`}>
+                                    <span className="text-[9px] font-bold uppercase tracking-wide">{day.dayName}</span>
+                                    <span className="text-sm font-bold">{day.fullDate}</span>
+                                    {day.events.length > 0 && <div className={`w-1 h-1 rounded-full mt-0.5 ${idx === currentDayIndex ? 'bg-blue-500' : 'bg-white/60'}`}></div>}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Main Content */}
+                    <main className="px-5 mt-5">
+                        {/* --- Itinerary Tab --- */}
+                        {activeTab === 'itinerary' && (
+                            <div className="pb-20 animate-fade-in">
+                                {currentDay?.events.length > 0 ? (
+                                    <div className="relative">
+                                        {currentDay.events.map((ev, i) => (
+                                            <div key={ev.id} onClick={() => { setSelectedEvent(ev); setIsDetailsModalOpen(true); }}
+                                                className="flex gap-4 cursor-pointer group mb-1" style={{ animationDelay: `${i * 0.06}s` }}>
+                                                {/* Time */}
+                                                <div className="w-12 text-xs text-gray-400 pt-3 text-left font-bold tabular-nums">{ev.time}</div>
+
+                                                {/* Timeline dot */}
+                                                <div className="flex flex-col items-center relative pt-1">
+                                                    {isEventCurrent(ev.time) && (
+                                                        <div className="absolute -top-1 w-4 h-4 bg-green-400/30 rounded-full animate-pulse-dot"></div>
+                                                    )}
+                                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center z-10 transition-all shadow-sm
+                                                        ${isEventCurrent(ev.time) ? 'bg-green-500 text-white ring-4 ring-green-100' : 'bg-blue-100 text-blue-600 group-hover:bg-blue-600 group-hover:text-white'}`}>
+                                                        <Icon name={getEventIcon(ev.type)} size={14} />
+                                                    </div>
+                                                    {i !== currentDay.events.length - 1 && (
+                                                        <div className="w-[2px] flex-grow bg-gradient-to-b from-blue-100 to-transparent my-1 min-h-[20px]"></div>
+                                                    )}
+                                                </div>
+
+                                                {/* Card */}
+                                                <div className="flex-1 pb-5">
+                                                    <div className="bg-white rounded-2xl border border-gray-100 p-4 group-hover:shadow-md group-hover:border-blue-100 transition-all duration-300">
+                                                        <div className="flex gap-3">
+                                                            {ev.imageUrl && (
+                                                                <img src={ev.imageUrl} className="w-16 h-16 rounded-xl object-cover flex-shrink-0 shadow-sm" />
+                                                            )}
+                                                            <div className="flex-1 min-w-0">
+                                                                <h3 className="font-bold text-gray-800">{ev.title}</h3>
+                                                                <p className="text-xs text-gray-400 truncate mt-0.5">{ev.address}</p>
+                                                                {ev.rating && <span className="text-xs text-yellow-600 font-bold">★ {ev.rating}</span>}
+                                                            </div>
+                                                        </div>
+                                                        {ev.note && (
+                                                            <div className="mt-2 text-xs text-amber-700 bg-amber-50 px-2.5 py-1.5 rounded-lg border border-amber-100">
+                                                                {ev.note}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-24">
+                                        <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                            <Icon name="calendar-plus" size={32} className="text-gray-300" />
+                                        </div>
+                                        <p className="text-gray-400 font-bold text-lg mb-1">אין אירועים ליום זה</p>
+                                        <p className="text-gray-300 text-sm">לחץ על + כדי להוסיף מקום</p>
+                                    </div>
+                                )}
+
+                                {/* FAB */}
+                                <button onClick={() => { setEditingEvent(null); setIsEditModalOpen(true); }}
+                                    className="fixed bottom-24 left-5 bg-gradient-to-br from-blue-500 to-indigo-600 text-white p-4 rounded-2xl shadow-2xl shadow-blue-400/40 hover:scale-105 active:scale-95 transition-all z-50">
+                                    <Icon name="plus" size={24} />
+                                </button>
+                            </div>
+                        )}
+
+                        {/* --- Nearby Tab --- */}
+                        {activeTab === 'nearby' && (
+                            <div className="pb-24 animate-fade-in">
+                                <h2 className="text-2xl font-display text-gray-800 mb-1">בסביבתי</h2>
+                                <p className="text-gray-400 text-sm mb-6">מקומות מומלצים באזור</p>
+                                <div className="grid grid-cols-2 gap-3">
+                                    {NEARBY_CATEGORIES.map((cat, i) => (
+                                        <button key={cat.id} onClick={() => handleNearbyClick(cat.query)}
+                                            className="group relative h-28 rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300"
+                                            style={{ animationDelay: `${i * 0.05}s` }}>
+                                            <div className={`absolute inset-0 bg-gradient-to-br ${cat.color} opacity-90`}></div>
+                                            <div className="absolute inset-0 flex flex-col items-center justify-center text-white">
+                                                <Icon name={cat.icon} size={28} className="mb-1 group-hover:scale-110 transition-transform" />
+                                                <span className="font-bold text-lg text-shadow">{cat.name}</span>
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* --- Documents Tab --- */}
+                        {activeTab === 'documents' && (
+                            <div className="pb-24 animate-fade-in">
+                                <h2 className="text-2xl font-display text-gray-800 mb-1">מסמכים</h2>
+                                <p className="text-gray-400 text-sm mb-6">כרטיסי טיסה, הזמנות, ועוד</p>
+                                <div className="grid gap-3">
+                                    {documents.length === 0 && (
+                                        <div className="text-center py-16">
+                                            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                                                <Icon name="file-text" size={28} className="text-gray-300" />
+                                            </div>
+                                            <p className="text-gray-400 font-bold">אין מסמכים עדיין</p>
+                                            <p className="text-gray-300 text-sm">לחץ + להוספת מסמך</p>
+                                        </div>
+                                    )}
+                                    {documents.map(doc => (
+                                        <div key={doc.id} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex justify-between items-center hover:shadow-md transition">
+                                            <a href={doc.url} download={doc.name} className="flex items-center gap-3 no-underline text-gray-800 min-w-0 flex-1">
+                                                <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center flex-shrink-0">
+                                                    <Icon name="file-text" size={18} className="text-blue-500" />
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <span className="text-sm font-bold block truncate">{doc.name}</span>
+                                                    <span className="text-[11px] text-gray-400">{doc.size} • {doc.date}</span>
+                                                </div>
+                                            </a>
+                                            <button onClick={() => setDocuments(documents.filter(d => d.id !== doc.id))} className="text-gray-300 hover:text-red-500 transition p-2">
+                                                <Icon name="trash-2" size={16} />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                                <label className="fixed bottom-24 left-5 bg-gradient-to-br from-blue-500 to-indigo-600 text-white p-4 rounded-2xl shadow-2xl shadow-blue-400/40 cursor-pointer hover:scale-105 active:scale-95 transition-all z-50">
+                                    <Icon name="plus" size={24} />
+                                    <input type="file" className="hidden" onChange={handleFileUpload} />
+                                </label>
+                            </div>
+                        )}
+                    </main>
+
+                    {/* Bottom Nav */}
+                    <div className="fixed bottom-0 left-0 right-0 glass border-t border-gray-200/50 pb-6 pt-2 px-8 flex justify-around z-40">
+                        <NavButton active={activeTab === 'itinerary'} onClick={() => setActiveTab('itinerary')} icon={<Icon name="calendar" />} label='לו"ז' />
+                        <NavButton active={activeTab === 'nearby'} onClick={() => setActiveTab('nearby')} icon={<Icon name="compass" />} label='בסביבתי' />
+                        <NavButton active={activeTab === 'documents'} onClick={() => setActiveTab('documents')} icon={<Icon name="file-text" />} label='מסמכים' />
+                    </div>
+
+                    {/* Modals */}
+                    <EditModal
+                        isOpen={isEditModalOpen}
+                        onClose={() => { setIsEditModalOpen(false); setEditingEvent(null); }}
+                        event={editingEvent}
+                        tripDays={currentTrip.days}
+                        currentDayId={currentDay?.id}
+                        tripLocation={currentTrip.destination}
+                        onSave={saveEvent}
+                        onDelete={deleteEvent}
+                        handleEventFileUpload={handleEventFileUpload}
+                        removeEventDocument={removeEventDocument}
+                    />
+                    <EventDetailsModal
+                        isOpen={isDetailsModalOpen}
+                        onClose={() => { setIsDetailsModalOpen(false); setSelectedEvent(null); }}
+                        event={selectedEvent}
+                        onEdit={() => { setEditingEvent(selectedEvent); setIsEditModalOpen(true); setIsDetailsModalOpen(false); }}
+                    />
+                    <TripEditModal
+                        isOpen={isTripEditModalOpen}
+                        onClose={() => setIsTripEditModalOpen(false)}
+                        trip={currentTrip}
+                        onSave={saveTripDetails}
+                    />
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
