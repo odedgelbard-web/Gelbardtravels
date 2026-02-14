@@ -877,9 +877,7 @@
             // ========== LOADING ==========
             if (!dataLoaded) return (
                 <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex flex-col items-center justify-center gap-4" dir="rtl">
-                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white shadow-xl shadow-blue-200/50 animate-pulse">
-                        <Icon name="globe" size={28} />
-                    </div>
+                    <div className="text-5xl animate-pulse">✈️</div>
                     <p className="text-gray-400 font-bold text-sm">טוען נתונים...</p>
                 </div>
             );
@@ -1147,13 +1145,21 @@
         // ⬆️  שנה את הסיסמה כאן  ⬆️
 
         const PasswordGate = ({ children }) => {
-            const [isAuth, setIsAuth] = useState(() => sessionStorage.getItem('trip_auth') === 'yes');
+            const [isAuth, setIsAuth] = useState(false);
             const [password, setPassword] = useState('');
             const [error, setError] = useState(false);
+            const [ready, setReady] = useState(false);
+
+            useEffect(() => {
+                try {
+                    if (sessionStorage.getItem('trip_auth') === 'yes') setIsAuth(true);
+                } catch(e) {}
+                setReady(true);
+            }, []);
 
             const handleSubmit = () => {
                 if (password === APP_PASSWORD) {
-                    sessionStorage.setItem('trip_auth', 'yes');
+                    try { sessionStorage.setItem('trip_auth', 'yes'); } catch(e) {}
                     setIsAuth(true);
                 } else {
                     setError(true);
@@ -1161,14 +1167,13 @@
                 }
             };
 
+            if (!ready) return null;
             if (isAuth) return children;
 
             return (
                 <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex items-center justify-center p-6" dir="rtl">
-                    <div className="bg-white rounded-3xl shadow-xl p-8 w-full max-w-xs text-center animate-fade-in">
-                        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white mx-auto mb-4 shadow-lg shadow-blue-200/50">
-                            <Icon name="lock" size={28} />
-                        </div>
+                    <div className="bg-white rounded-3xl shadow-xl p-8 w-full max-w-xs text-center">
+                        <div className="text-5xl mb-4">✈️</div>
                         <h2 className="font-display text-xl mb-1">הטיול המשפחתי</h2>
                         <p className="text-gray-400 text-sm mb-6">הכנס סיסמה כדי להיכנס</p>
                         <input
@@ -1177,11 +1182,10 @@
                             onChange={(e) => setPassword(e.target.value)}
                             onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
                             placeholder="סיסמה..."
-                            className={`w-full p-3 border-2 rounded-xl text-center text-lg font-bold focus:outline-none transition ${error ? 'border-red-400 bg-red-50 animate-pulse' : 'border-gray-200 focus:border-blue-400'}`}
-                            autoFocus
+                            className={`w-full p-3 border-2 rounded-xl text-center text-lg font-bold focus:outline-none transition ${error ? 'border-red-400 bg-red-50' : 'border-gray-200 focus:border-blue-400'}`}
                         />
                         {error && <p className="text-red-500 text-xs mt-2 font-bold">סיסמה שגויה</p>}
-                        <button onClick={handleSubmit} className="w-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white font-bold p-3 rounded-xl mt-4 shadow-lg shadow-blue-200/50 hover:scale-[1.02] active:scale-[0.98] transition-all">
+                        <button onClick={handleSubmit} className="w-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white font-bold p-3 rounded-xl mt-4 shadow-lg shadow-blue-200/50 active:scale-95 transition-all">
                             כניסה
                         </button>
                     </div>
