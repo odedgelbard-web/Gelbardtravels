@@ -137,12 +137,19 @@
         const { useState, useEffect, useRef, useCallback } = React;
 
         // --- Helpers ---
-        const Icon = ({ name, size = 24, className = "" }) => (
-            <i data-lucide={name} className={className} style={{ width: size, height: size, display: 'inline-block' }}></i>
-        );
-
-        const useLucide = () => {
-            useEffect(() => { if (window.lucide) window.lucide.createIcons(); });
+        // Icon component using ref - prevents React/Lucide DOM conflict
+        const Icon = ({ name, size = 24, className = "" }) => {
+            const ref = useRef(null);
+            useEffect(() => {
+                if (ref.current && window.lucide) {
+                    const iconNode = document.createElement('i');
+                    iconNode.setAttribute('data-lucide', name);
+                    ref.current.innerHTML = '';
+                    ref.current.appendChild(iconNode);
+                    window.lucide.createIcons({ nodes: [iconNode] });
+                }
+            }, [name, size]);
+            return <span ref={ref} className={className} style={{ width: size, height: size, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }} />;
         };
 
         const getFutureDate = (daysToAdd) => {
@@ -661,7 +668,6 @@
 
         // --- Main App ---
         function App() {
-            useLucide();
 
             const [trips, setTrips] = useState(INITIAL_TRIPS);
             const [documents, setDocuments] = useState([]);
@@ -1135,8 +1141,56 @@
             );
         }
 
+        // --- Password Gate ---
+        // ⬇️  שנה את הסיסמה כאן  ⬇️
+        const APP_PASSWORD = "gelbard2026";
+        // ⬆️  שנה את הסיסמה כאן  ⬆️
+
+        const PasswordGate = ({ children }) => {
+            const [isAuth, setIsAuth] = useState(() => sessionStorage.getItem('trip_auth') === 'yes');
+            const [password, setPassword] = useState('');
+            const [error, setError] = useState(false);
+
+            const handleSubmit = () => {
+                if (password === APP_PASSWORD) {
+                    sessionStorage.setItem('trip_auth', 'yes');
+                    setIsAuth(true);
+                } else {
+                    setError(true);
+                    setTimeout(() => setError(false), 1500);
+                }
+            };
+
+            if (isAuth) return children;
+
+            return (
+                <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex items-center justify-center p-6" dir="rtl">
+                    <div className="bg-white rounded-3xl shadow-xl p-8 w-full max-w-xs text-center animate-fade-in">
+                        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white mx-auto mb-4 shadow-lg shadow-blue-200/50">
+                            <Icon name="lock" size={28} />
+                        </div>
+                        <h2 className="font-display text-xl mb-1">הטיול המשפחתי</h2>
+                        <p className="text-gray-400 text-sm mb-6">הכנס סיסמה כדי להיכנס</p>
+                        <input
+                            type="password"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+                            placeholder="סיסמה..."
+                            className={`w-full p-3 border-2 rounded-xl text-center text-lg font-bold focus:outline-none transition ${error ? 'border-red-400 bg-red-50 animate-pulse' : 'border-gray-200 focus:border-blue-400'}`}
+                            autoFocus
+                        />
+                        {error && <p className="text-red-500 text-xs mt-2 font-bold">סיסמה שגויה</p>}
+                        <button onClick={handleSubmit} className="w-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white font-bold p-3 rounded-xl mt-4 shadow-lg shadow-blue-200/50 hover:scale-[1.02] active:scale-[0.98] transition-all">
+                            כניסה
+                        </button>
+                    </div>
+                </div>
+            );
+        };
+
         const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
+        root.render(<PasswordGate><App /></PasswordGate>);
     </script>
 </body>
 </html>
