@@ -129,7 +129,6 @@
         const { useState, useEffect, useRef, useCallback } = React;
 
         // --- Helpers ---
-        // Icon component using ref - prevents React/Lucide DOM conflict
         const Icon = ({ name, size = 24, className = "" }) => {
             const ref = useRef(null);
             useEffect(() => {
@@ -154,6 +153,22 @@
             if (!dateStr) return '';
             const d = new Date(dateStr);
             return `${d.getDate()}/${d.getMonth() + 1}`;
+        };
+
+        // ✅ NEW: Hebrew day of week helpers
+        const HEBREW_DAYS_SHORT = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
+        const HEBREW_DAYS_FULL  = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+
+        const getHebrewDayShort = (dateStr) => {
+            if (!dateStr) return '';
+            const d = new Date(dateStr);
+            return HEBREW_DAYS_SHORT[d.getDay()];
+        };
+
+        const getHebrewDayFull = (dateStr) => {
+            if (!dateStr) return '';
+            const d = new Date(dateStr);
+            return HEBREW_DAYS_FULL[d.getDay()];
         };
 
         // Google Places: get photo URL from place
@@ -190,7 +205,6 @@
             { label: 'פראג', keyword: 'Prague old town', url: 'https://images.unsplash.com/photo-1519677100203-a0e668c92439?w=800&q=80' },
         ];
 
-        // Search for a cover image using Google Places Photos
         const searchCoverImage = (query, callback) => {
             if (!window.google) return;
             const service = new google.maps.places.PlacesService(document.createElement('div'));
@@ -216,11 +230,11 @@
                 startDate: getFutureDate(30),
                 endDate: getFutureDate(34),
                 days: [
-                    { id: 1, date: getFutureDate(30), dayName: "יום 1", fullDate: formatHebrewDate(getFutureDate(30)), city: "New York", lat: 40.7128, lng: -74.0060, events: [] },
-                    { id: 2, date: getFutureDate(31), dayName: "יום 2", fullDate: formatHebrewDate(getFutureDate(31)), city: "New York", lat: 40.7128, lng: -74.0060, events: [] },
-                    { id: 3, date: getFutureDate(32), dayName: "יום 3", fullDate: formatHebrewDate(getFutureDate(32)), city: "New York", lat: 40.7128, lng: -74.0060, events: [] },
-                    { id: 4, date: getFutureDate(33), dayName: "יום 4", fullDate: formatHebrewDate(getFutureDate(33)), city: "New York", lat: 40.7128, lng: -74.0060, events: [] },
-                    { id: 5, date: getFutureDate(34), dayName: "יום 5", fullDate: formatHebrewDate(getFutureDate(34)), city: "New York", lat: 40.7128, lng: -74.0060, events: [] },
+                    { id: 1, date: getFutureDate(30), dayName: "יום 1", fullDate: formatHebrewDate(getFutureDate(30)), dayOfWeek: getHebrewDayShort(getFutureDate(30)), city: "New York", lat: 40.7128, lng: -74.0060, events: [] },
+                    { id: 2, date: getFutureDate(31), dayName: "יום 2", fullDate: formatHebrewDate(getFutureDate(31)), dayOfWeek: getHebrewDayShort(getFutureDate(31)), city: "New York", lat: 40.7128, lng: -74.0060, events: [] },
+                    { id: 3, date: getFutureDate(32), dayName: "יום 3", fullDate: formatHebrewDate(getFutureDate(32)), dayOfWeek: getHebrewDayShort(getFutureDate(32)), city: "New York", lat: 40.7128, lng: -74.0060, events: [] },
+                    { id: 4, date: getFutureDate(33), dayName: "יום 4", fullDate: formatHebrewDate(getFutureDate(33)), dayOfWeek: getHebrewDayShort(getFutureDate(33)), city: "New York", lat: 40.7128, lng: -74.0060, events: [] },
+                    { id: 5, date: getFutureDate(34), dayName: "יום 5", fullDate: formatHebrewDate(getFutureDate(34)), dayOfWeek: getHebrewDayShort(getFutureDate(34)), city: "New York", lat: 40.7128, lng: -74.0060, events: [] },
                 ]
             }
         ];
@@ -236,7 +250,6 @@
                     fields: ['name', 'formatted_address', 'geometry', 'photos', 'rating', 'opening_hours', 'place_id', 'types'],
                 };
 
-                // Bias results to trip destination area
                 if (biasLocation) {
                     options.bounds = new google.maps.LatLngBounds(
                         new google.maps.LatLng(biasLocation.lat - 0.5, biasLocation.lng - 0.5),
@@ -342,7 +355,6 @@
                 else setFormData({ time: '12:00', title: '', description: '', address: '', type: 'activity', note: '', coords: '', imageUrl: '', openingHours: '', documents: [], dayId: currentDayId, rating: null });
             }, [event, isOpen]);
 
-            // Determine bias location from trip
             const biasLoc = tripLocation ? (() => {
                 const day = tripDays?.find(d => d.lat && d.lng);
                 return day ? { lat: day.lat, lng: day.lng } : { lat: 40.7128, lng: -74.006 };
@@ -417,7 +429,12 @@
                                     <label className="text-xs font-bold text-gray-500 block mb-1.5">יום</label>
                                     <select value={formData.dayId} onChange={(e) => setFormData({ ...formData, dayId: Number(e.target.value) })}
                                         className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm text-right focus:outline-none focus:ring-2 focus:ring-blue-200 transition">
-                                        {tripDays?.map(d => <option key={d.id} value={d.id}>{d.dayName} - {d.fullDate}</option>)}
+                                        {/* ✅ Shows: יום 1 - 25/3 ג׳ */}
+                                        {tripDays?.map(d => (
+                                            <option key={d.id} value={d.id}>
+                                                {d.dayName} - {d.fullDate} {d.dayOfWeek || getHebrewDayShort(d.date)}
+                                            </option>
+                                        ))}
                                     </select>
                                 </div>
                                 <div>
@@ -528,7 +545,10 @@
                         const exist = trip.days.find(day => day.date === dateStr);
                         newDays.push(exist || {
                             id: Date.now() + i, date: dateStr, dayName: `יום ${i + 1}`,
-                            fullDate: `${d.getDate()}/${d.getMonth() + 1}`, city: data.destination,
+                            fullDate: `${d.getDate()}/${d.getMonth() + 1}`,
+                            // ✅ NEW: store day of week in day object
+                            dayOfWeek: HEBREW_DAYS_SHORT[d.getDay()],
+                            city: data.destination,
                             lat: 40.7128, lng: -74.006, events: []
                         });
                     }
@@ -544,7 +564,6 @@
                     setData(prev => ({ ...prev, coverImage: url }));
                     setIsSearchingCover(false);
                 });
-                // Timeout fallback
                 setTimeout(() => setIsSearchingCover(false), 5000);
             };
 
@@ -596,7 +615,6 @@
                                     <Icon name="image" size={13} /> תמונת כיסוי לטיול
                                 </label>
                                 
-                                {/* Preset grid */}
                                 <div className="grid grid-cols-4 gap-2 mb-3">
                                     {COVER_PRESETS.map((preset, i) => (
                                         <button key={i} onClick={() => setData({ ...data, coverImage: preset.url })}
@@ -614,7 +632,6 @@
                                     ))}
                                 </div>
 
-                                {/* Custom search */}
                                 <div className="flex gap-2">
                                     <input type="text" value={customSearch} onChange={e => setCustomSearch(e.target.value)}
                                         onKeyDown={e => e.key === 'Enter' && handleSearchCustomCover()}
@@ -695,7 +712,6 @@
                             </div>
                         )}
 
-                        {/* Navigation buttons */}
                         {event.coords && (
                             <div className="space-y-2.5 pt-1">
                                 <div className="grid grid-cols-2 gap-2.5">
@@ -715,7 +731,6 @@
                                     <span>Uber XL — הזמן מונית ל-6</span>
                                 </a>
 
-                                {/* Embedded Google Map */}
                                 <div className="mt-3 rounded-2xl overflow-hidden shadow-sm border border-gray-100" style={{ height: '200px' }}>
                                     <iframe
                                         width="100%"
@@ -741,11 +756,9 @@
             const [documents, setDocuments] = useState([]);
             const [dataLoaded, setDataLoaded] = useState(false);
 
-            // Write to Firebase whenever trips change (skip if change came from Firebase)
             const isFromFirebase = useRef(false);
             const isInitialMount = useRef(true);
 
-            // Listen for changes from Firebase
             useEffect(() => {
                 const tripsRef = db.ref('trips');
                 const docsRef = db.ref('documents');
@@ -787,7 +800,6 @@
                 };
             }, []);
 
-            // Fallback: if Firebase doesn't respond in 5 seconds, show app anyway
             useEffect(() => {
                 const timer = setTimeout(() => {
                     if (!dataLoaded) {
@@ -798,7 +810,6 @@
                 return () => clearTimeout(timer);
             }, [dataLoaded]);
 
-            // Save to Firebase when user makes changes (not when Firebase pushes updates)
             useEffect(() => {
                 if (isInitialMount.current) { isInitialMount.current = false; return; }
                 if (!dataLoaded || isFromFirebase.current) return;
@@ -820,7 +831,6 @@
             const [selectedEvent, setSelectedEvent] = useState(null);
             const [editingEvent, setEditingEvent] = useState(null);
 
-            // --- Back Button Navigation ---
             const navigateToTrip = (tripId) => {
                 setCurrentTripId(tripId);
                 setCurrentDayIndex(0);
@@ -836,13 +846,11 @@
             };
 
             useEffect(() => {
-                // Set initial state
                 history.replaceState({ view: 'list' }, '');
 
                 const handlePopState = (e) => {
                     if (isDetailsModalOpen) {
                         setIsDetailsModalOpen(false);
-                        // Push trip state back so next back goes to list
                         if (currentTripId) history.pushState({ view: 'trip', tripId: currentTripId }, '');
                     } else if (isEditModalOpen) {
                         setIsEditModalOpen(false);
@@ -860,7 +868,6 @@
                 return () => window.removeEventListener('popstate', handlePopState);
             }, [currentTripId, isDetailsModalOpen, isEditModalOpen, isTripEditModalOpen]);
 
-            // Push state when opening modals
             const openDetailsModal = (ev) => {
                 setSelectedEvent(ev);
                 setIsDetailsModalOpen(true);
@@ -881,7 +888,6 @@
             const currentTrip = trips.find(t => t.id === currentTripId);
             const currentDay = currentTrip ? currentTrip.days[currentDayIndex] : null;
 
-            // --- Handlers ---
             const saveTripDetails = (formData) => {
                 setTrips(trips.map(t => t.id === currentTripId ? { ...t, ...formData } : t));
                 setIsTripEditModalOpen(false);
@@ -894,7 +900,6 @@
                 const curDayId = currentDay.id;
 
                 if (targetDayId !== curDayId && editingEvent) {
-                    // Move event to different day
                     updatedTrips[tripIndex].days[currentDayIndex].events =
                         updatedTrips[tripIndex].days[currentDayIndex].events.filter(e => e.id !== editingEvent.id);
                     const newDayIndex = updatedTrips[tripIndex].days.findIndex(d => d.id === targetDayId);
@@ -935,7 +940,6 @@
             const handleFileUpload = (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
-                // Firebase limit: warn if file > 2MB
                 if (file.size > 2 * 1024 * 1024) {
                     alert('הקובץ גדול מדי (מעל 2MB). נא להעלות קבצים קטנים יותר.');
                     return;
@@ -1075,7 +1079,7 @@
                             </div>
                         </div>
 
-                        {/* Day selector */}
+                        {/* ✅ Day selector — now shows: יום 1 / 25/3 / ג׳ */}
                         <div className="absolute bottom-0 right-0 left-0 px-3 pb-2 flex gap-1.5 overflow-x-auto no-scrollbar">
                             {currentTrip.days.map((day, idx) => (
                                 <button key={day.id} onClick={() => setCurrentDayIndex(idx)}
@@ -1084,6 +1088,8 @@
                                         : 'bg-white/15 text-white/80 hover:bg-white/25'}`}>
                                     <span className="text-[8px] font-bold uppercase tracking-wide">{day.dayName}</span>
                                     <span className="text-xs font-bold">{day.fullDate}</span>
+                                    {/* ✅ NEW: Hebrew day of week abbreviation */}
+                                    <span className="text-[9px] font-bold opacity-80">{day.dayOfWeek || getHebrewDayShort(day.date)}</span>
                                     {day.events.length > 0 && <div className={`w-1 h-1 rounded-full mt-0.5 ${idx === currentDayIndex ? 'bg-blue-500' : 'bg-white/60'}`}></div>}
                                 </button>
                             ))}
@@ -1149,7 +1155,6 @@
                                         <p className="text-gray-300 text-sm">לחץ על + כדי להוסיף מקום</p>
                                     </div>
                                 )}
-
                             </div>
                         )}
 
@@ -1208,7 +1213,7 @@
                         )}
                     </main>
 
-                    {/* Floating Action Buttons - always visible above bottom nav */}
+                    {/* Floating Action Buttons */}
                     {activeTab === 'itinerary' && (
                         <button onClick={() => openEditModal(null)}
                             className="fixed left-4 bg-gradient-to-br from-blue-500 to-indigo-600 text-white p-3.5 rounded-2xl shadow-2xl shadow-blue-400/40 hover:scale-105 active:scale-95 transition-all z-50"
@@ -1269,7 +1274,6 @@
             const [error, setError] = useState(false);
             const [loading, setLoading] = useState(true);
 
-            // Check if already signed in to Firebase
             useEffect(() => {
                 const unsub = auth.onAuthStateChanged((user) => {
                     if (user) {
@@ -1287,7 +1291,6 @@
                         setIsAuth(true);
                     } catch (e) {
                         console.error('Auth error:', e);
-                        // Fallback - allow in anyway
                         setIsAuth(true);
                     }
                 } else {
